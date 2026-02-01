@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync/atomic"
 )
 
@@ -33,6 +34,21 @@ func respondWithError(w http.ResponseWriter, code int, msg string) {
 	respondWithJSON(w, code, payld)
 }
 
+func sanitizeChirp(s string) string {
+	profane_words := []string{"kerfuffle", "sharbert", "fornax"}
+	s_slice := strings.Split(s, " ")
+	for i, w := range s_slice {
+		for _, p := range profane_words {
+			if strings.ToLower(w) == p {
+				s_slice[i] = "****"
+			}
+		}
+	}
+	new_str := strings.Join(s_slice, " ")
+
+	return new_str
+}
+
 // handlers:
 
 func handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
@@ -50,7 +66,7 @@ func handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type repbody struct {
-		Valid bool `json:"valid"`
+		CleanedBody string `json:"cleaned_body"`
 	}
 
 	if len(chp.Body) > 140 {
@@ -58,7 +74,9 @@ func handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	respondWithJSON(w, 200, repbody{Valid: true})
+	cleaned_str := sanitizeChirp(chp.Body)
+
+	respondWithJSON(w, 200, repbody{CleanedBody: cleaned_str})
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
