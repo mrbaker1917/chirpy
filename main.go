@@ -9,7 +9,9 @@ import (
 	"os"
 	"strings"
 	"sync/atomic"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 	"github.com/mrbaker1917/chirpy/internal/database"
@@ -18,6 +20,14 @@ import (
 type apiConfig struct {
 	fileserverHits atomic.Int32
 	db             *database.Queries
+	platform       string
+}
+
+type User struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Email     string    `json:"email"`
 }
 
 // helpers:
@@ -94,10 +104,24 @@ func (apiCfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 }
 
 func (apiCfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
+
+	if apiCfg.platform != "dev" {
+		respondWithError(w, 403, "forbidden")
+		return
+	}
+
+	err := apiCfg.db.DeleteAll(r.Context())
+	if err != nil {
+		log.Printf("error deleting all users: %s", err)
+		respondWithError(w, 500, "Error deleting all users")
+		return
+	}
+
 	apiCfg.fileserverHits.Store(0)
 	w.Header().Add("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(fmt.Sprintf("Number of server hits is reset to %d", apiCfg.fileserverHits.Load())))
+
 }
 
 func (apiCfg *apiConfig) handlerMetrics(w http.ResponseWriter, r *http.Request) {
@@ -119,6 +143,37 @@ func handlerReadiness(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(http.StatusText(http.StatusOK)))
 }
 
+func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	type reqEmail struct {
+		Email string `json:"email"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	rEmail := reqEmail{}
+	err := decoder.Decode(&rEmail)
+	if err != nil {
+		log.Printf("Error decoding chirp: %s", err)
+		respondWithError(w, 500, "Error decoding request body")
+		return
+	}
+
+	user, err := cfg.db.CreateUser(ctx, rEmail.Email)
+	if err != nil {
+		log.Printf("Could not create new user: %s", err)
+		respondWithError(w, 500, "Error trying to create new user")
+		return
+	}
+	userResp := User{
+		ID:        user.ID,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+		Email:     user.Email,
+	}
+	respondWithJSON(w, 201, userResp)
+
+}
+
 func main() {
 	godotenv.Load()
 	dbURL := os.Getenv("DB_URL")
@@ -133,7 +188,9 @@ func main() {
 	apiCfg := apiConfig{
 		fileserverHits: atomic.Int32{},
 		db:             dbQueries,
+		platform:       os.Getenv("PLATFORM"),
 	}
+
 	const filepathRoot = "."
 	const port = "8080"
 	mux := http.NewServeMux()
@@ -142,6 +199,7 @@ func main() {
 	mux.Handle("/app/", apiCfg.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir(filepathRoot)))))
 	mux.HandleFunc("GET /api/healthz", handlerReadiness)
 	mux.HandleFunc("POST /api/validate_chirp", handlerValidateChirp)
+	mux.HandleFunc("POST /api/users", apiCfg.handlerCreateUser)
 
 	srv := &http.Server{
 		Addr:    ":" + port,
@@ -151,3 +209,11 @@ func main() {
 	log.Printf("Serving files from %s on port: %s\n", filepathRoot, port)
 	log.Fatal(srv.ListenAndServe())
 }
+
+// here is model for handlers:
+// func (cfg *apiConfig) someHandler(w http.ResponseWriter, r *http.Request) {
+//     ctx := r.Context() // <- comes from the request
+
+//     user, err := cfg.db.CreateUser(ctx, email)
+//     // handle err, write response, etc.
+// }
