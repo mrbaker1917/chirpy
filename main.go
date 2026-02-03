@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -30,6 +29,14 @@ type User struct {
 	Email     string    `json:"email"`
 }
 
+type Chirp struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Body      string    `json:"body"`
+	UserID    uuid.UUID `json:"user_id"`
+}
+
 // helpers:
 
 func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
@@ -49,51 +56,6 @@ func respondWithError(w http.ResponseWriter, code int, msg string) {
 	payld := make(map[string]string)
 	payld["error"] = msg
 	respondWithJSON(w, code, payld)
-}
-
-func sanitizeChirp(s string) string {
-	profane_words := []string{"kerfuffle", "sharbert", "fornax"}
-	s_slice := strings.Split(s, " ")
-	for i, w := range s_slice {
-		for _, p := range profane_words {
-			if strings.ToLower(w) == p {
-				s_slice[i] = "****"
-			}
-		}
-	}
-	new_str := strings.Join(s_slice, " ")
-
-	return new_str
-}
-
-// handlers:
-
-func handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
-	type chirp struct {
-		Body string `json:"body"`
-	}
-
-	decoder := json.NewDecoder(r.Body)
-	chp := chirp{}
-	err := decoder.Decode(&chp)
-	if err != nil {
-		log.Printf("Error decoding chirp: %s", err)
-		respondWithError(w, 500, "Error decoding request body")
-		return
-	}
-
-	type repbody struct {
-		CleanedBody string `json:"cleaned_body"`
-	}
-
-	if len(chp.Body) > 140 {
-		respondWithError(w, 400, "Chirp is too long")
-		return
-	}
-
-	cleaned_str := sanitizeChirp(chp.Body)
-
-	respondWithJSON(w, 200, repbody{CleanedBody: cleaned_str})
 }
 
 func (apiCfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -143,7 +105,7 @@ func handlerReadiness(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(http.StatusText(http.StatusOK)))
 }
 
-func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) {
+func (apiCfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	type reqEmail struct {
 		Email string `json:"email"`
@@ -153,12 +115,12 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 	rEmail := reqEmail{}
 	err := decoder.Decode(&rEmail)
 	if err != nil {
-		log.Printf("Error decoding chirp: %s", err)
+		log.Printf("Error decoding user input: %s", err)
 		respondWithError(w, 500, "Error decoding request body")
 		return
 	}
 
-	user, err := cfg.db.CreateUser(ctx, rEmail.Email)
+	user, err := apiCfg.db.CreateUser(ctx, rEmail.Email)
 	if err != nil {
 		log.Printf("Could not create new user: %s", err)
 		respondWithError(w, 500, "Error trying to create new user")
@@ -198,8 +160,8 @@ func main() {
 	mux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
 	mux.Handle("/app/", apiCfg.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir(filepathRoot)))))
 	mux.HandleFunc("GET /api/healthz", handlerReadiness)
-	mux.HandleFunc("POST /api/validate_chirp", handlerValidateChirp)
 	mux.HandleFunc("POST /api/users", apiCfg.handlerCreateUser)
+	mux.HandleFunc("POST /api/chirps", apiCfg.handlerCreateChirp)
 
 	srv := &http.Server{
 		Addr:    ":" + port,
