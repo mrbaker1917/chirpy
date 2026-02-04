@@ -11,7 +11,7 @@ func (apiCfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request
 	ctx := r.Context()
 	chirps, err := apiCfg.db.GetChirps(ctx)
 	if err != nil {
-		log.Printf("we encountered an error: %w", err)
+		log.Printf("we encountered an error: %s", err)
 	}
 	response_chirps := []ChirpResponse{}
 	for _, chirp := range chirps {

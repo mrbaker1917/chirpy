@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
+	"github.com/mrbaker1917/chirpy/internal/auth"
 	"github.com/mrbaker1917/chirpy/internal/database"
 )
 
@@ -107,20 +108,30 @@ func handlerReadiness(w http.ResponseWriter, r *http.Request) {
 
 func (apiCfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	type reqEmail struct {
-		Email string `json:"email"`
+	type reqBody struct {
+		Password string `json:"password"`
+		Email    string `json:"email"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
-	rEmail := reqEmail{}
-	err := decoder.Decode(&rEmail)
+	reqBdy := reqBody{}
+	err := decoder.Decode(&reqBdy)
 	if err != nil {
 		log.Printf("Error decoding user input: %s", err)
 		respondWithError(w, 500, "Error decoding request body")
 		return
 	}
 
-	user, err := apiCfg.db.CreateUser(ctx, rEmail.Email)
+	hashed_password, err := auth.HashPassword(reqBdy.Password)
+	if err != nil {
+		log.Printf("Error hasing password: %s", err)
+	}
+
+	user, err := apiCfg.db.CreateUser(ctx, database.CreateUserParams{
+		Email:          reqBdy.Email,
+		HashedPassword: hashed_password,
+	})
+
 	if err != nil {
 		log.Printf("Could not create new user: %s", err)
 		respondWithError(w, 500, "Error trying to create new user")
@@ -164,6 +175,7 @@ func main() {
 	mux.HandleFunc("POST /api/chirps", apiCfg.handlerCreateChirp)
 	mux.HandleFunc("GET /api/chirps", apiCfg.handlerGetChirps)
 	mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handlerGetChirpById)
+	mux.HandleFunc("POST /api/login", apiCfg.handlerLogin)
 
 	srv := &http.Server{
 		Addr:    ":" + port,
