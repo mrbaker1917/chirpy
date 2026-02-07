@@ -13,6 +13,7 @@ func (apiCfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		log.Printf("we encountered an error: %s", err)
 	}
+
 	response_chirps := []ChirpResponse{}
 	for _, chirp := range chirps {
 		response_chirps = append(response_chirps, ChirpResponse{

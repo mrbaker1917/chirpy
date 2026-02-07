@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"net/http"
 	"testing"
 	"time"
 
@@ -126,4 +127,63 @@ func TestValidateJWT(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetBearerToken(t *testing.T) {
+	headers := http.Header{}
+	// Using the Set method (canonicalizes the key)
+	headers.Set("Content-Type", "text/json")
+	headers.Set("Authorization", "Bearer TOKEN_STRING")
+	no_auth_headers := http.Header{}
+	no_auth_headers.Set("Content-Type", "text")
+	no_bearer := http.Header{}
+	no_bearer.Set("Content-Type", "text/html")
+	no_bearer.Set("Authorization", "TOKEN_STRING")
+	extra_spaces := http.Header{}
+	extra_spaces.Set("Content-Type", "text/json")
+	extra_spaces.Set("Authorization", "Bearer   MY_TOKEN  ")
+
+	tests := []struct {
+		name       string
+		hdrs       http.Header
+		wantResult string
+		wantErr    bool
+	}{
+		{
+			name:       "valid token string",
+			hdrs:       headers,
+			wantResult: "TOKEN_STRING",
+			wantErr:    false,
+		},
+		{
+			name:       "no auth in header",
+			hdrs:       no_auth_headers,
+			wantResult: "",
+			wantErr:    true,
+		},
+		{
+			name:       "no bearer prefix",
+			hdrs:       no_bearer,
+			wantResult: "",
+			wantErr:    true,
+		},
+		{
+			name:       "extra spaces",
+			hdrs:       extra_spaces,
+			wantResult: "MY_TOKEN",
+			wantErr:    false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			toke_str, err := GetBearerToken(tt.hdrs)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetBearerToken() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if toke_str != tt.wantResult {
+				t.Errorf("GetBearerToken() toke_str = %v, want %v", toke_str, tt.wantResult)
+			}
+		})
+	}
+
 }

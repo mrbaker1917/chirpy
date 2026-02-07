@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/mrbaker1917/chirpy/internal/auth"
 	"github.com/mrbaker1917/chirpy/internal/database"
 )
 
@@ -52,9 +53,9 @@ func validateChirp(s string) (string, error) {
 // handler:
 func (apiCfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
 	type reqChirp struct {
-		Body   string    `json:"body"`
-		UserID uuid.UUID `json:"user_id"`
+		Body string `json:"body"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -63,6 +64,18 @@ func (apiCfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		log.Printf("Error decoding chirp: %s", err)
 		respondWithError(w, 500, "Error decoding request body")
+		return
+	}
+
+	bearerToken, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, 401, "Requester does not have a session token")
+		return
+	}
+
+	userID, err := auth.ValidateJWT(bearerToken, apiCfg.secret)
+	if err != nil {
+		respondWithError(w, 401, "Session token not valid!")
 		return
 	}
 
@@ -76,7 +89,7 @@ func (apiCfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Reque
 		ctx,
 		database.CreateChirpParams{
 			Body:   cleanedBody,
-			UserID: chp.UserID,
+			UserID: userID,
 		},
 	)
 

@@ -2,6 +2,9 @@ package auth
 
 import (
 	"errors"
+	"log"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -28,10 +31,14 @@ func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 		tokenString,
 		&jwt.RegisteredClaims{},
 		func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, errors.New("unexpected signing method")
+			}
 			return []byte(tokenSecret), nil
 		})
 
 	if err != nil {
+		log.Printf("JWT parsing error: %v", err)
 		return uuid.UUID{}, err
 	}
 
@@ -52,4 +59,20 @@ func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 	}
 
 	return id, nil
+}
+
+func GetBearerToken(headers http.Header) (string, error) {
+	auth := headers.Get("Authorization")
+	if auth == "" {
+		return "", errors.New("no authorization header found")
+	}
+
+	token_string, found := strings.CutPrefix(auth, "Bearer ")
+	if !found {
+		return "", errors.New("no authorization prefix found")
+	}
+	token_string = strings.TrimSpace(token_string)
+
+	return token_string, nil
+
 }
