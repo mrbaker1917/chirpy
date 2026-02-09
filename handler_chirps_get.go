@@ -33,9 +33,11 @@ func (apiCfg *apiConfig) handlerGetChirpById(w http.ResponseWriter, r *http.Requ
 	uChirpId, err := uuid.Parse(chirpId)
 	if err != nil {
 		log.Fatalf("failed to parse UUID %q: %v", chirpId, err)
+		return
 	}
 	if chirpId == "" {
 		log.Println("No ChirpID found. We need a ChirpID to get the Chirp.")
+		return
 	}
 
 	chirp, err := apiCfg.db.GetChirpById(r.Context(), uChirpId)

@@ -65,19 +65,21 @@ func (apiCfg *apiConfig) handlerUserUpdate(w http.ResponseWriter, r *http.Reques
 	}
 
 	type updatedUser struct {
-		ID        uuid.UUID `json:"id"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-		Email     string    `json:"email"`
-		Token     string    `json:"token"`
+		ID          uuid.UUID `json:"id"`
+		CreatedAt   time.Time `json:"created_at"`
+		UpdatedAt   time.Time `json:"updated_at"`
+		Email       string    `json:"email"`
+		Token       string    `json:"token"`
+		IsChirpyRed bool      `json:"is_chirpy_red"`
 	}
 
 	respondWithJSON(w, 200, updatedUser{
-		ID:        updated_user.ID,
-		CreatedAt: updated_user.CreatedAt,
-		UpdatedAt: updated_user.UpdatedAt,
-		Email:     updated_user.Email,
-		Token:     token,
+		ID:          updated_user.ID,
+		CreatedAt:   updated_user.CreatedAt,
+		UpdatedAt:   updated_user.UpdatedAt,
+		Email:       updated_user.Email,
+		Token:       token,
+		IsChirpyRed: updated_user.IsChirpyRed,
 	})
 
 }
