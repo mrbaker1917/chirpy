@@ -14,7 +14,7 @@ func (apiCfg *apiConfig) handlerUpgradeUser(w http.ResponseWriter, r *http.Reque
 
 	apiKey, err := auth.GetAPIKey(r.Header)
 	if err != nil {
-		log.Printf("No ApiKey found in header: $s", err)
+		log.Printf("No ApiKey found in header: %s", err)
 		respondWithError(w, 401, "No ApiKey found in header")
 		return
 	}

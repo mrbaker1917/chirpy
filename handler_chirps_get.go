@@ -5,13 +5,38 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/mrbaker1917/chirpy/internal/database"
 )
 
 func (apiCfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	chirps, err := apiCfg.db.GetChirps(ctx)
-	if err != nil {
-		log.Printf("we encountered an error: %s", err)
+
+	chirps := []database.Chirp{}
+	var err error
+	authorID := r.URL.Query().Get("author_id")
+	if authorID != "" {
+		uAuthorID, err := uuid.Parse(authorID)
+		if err != nil {
+			log.Printf("We encountered an error parsing authorID: %s", err)
+			respondWithError(w, 501, "we encountered an error parsing author_id")
+			return
+		}
+		chirps, err = apiCfg.db.GetChirpsByAuthor(ctx, uAuthorID)
+		if err != nil {
+			log.Printf("We encountered grabbing chirps by this authorID: %s", err)
+			respondWithError(w, 501, "We could not find any chirps for this author_id")
+			return
+		}
+
+	} else {
+
+		chirps, err = apiCfg.db.GetChirps(ctx)
+		if err != nil {
+			log.Printf("we encountered an error: %s", err)
+			respondWithError(w, 501, "we encountered an error getting chirps")
+			return
+		}
+
 	}
 
 	response_chirps := []ChirpResponse{}
