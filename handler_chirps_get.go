@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"sort"
 
 	"github.com/google/uuid"
 	"github.com/mrbaker1917/chirpy/internal/database"
@@ -37,6 +38,13 @@ func (apiCfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request
 			return
 		}
 
+	}
+
+	sortWay := r.URL.Query().Get("sort")
+	if sortWay != "" {
+		if sortWay == "desc" {
+			sort.Slice(chirps, func(i, j int) bool { return chirps[i].CreatedAt.After(chirps[j].CreatedAt) })
+		}
 	}
 
 	response_chirps := []ChirpResponse{}
