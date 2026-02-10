@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
-	"github.com/mrbaker1917/chirpy/internal/auth"
 	"github.com/mrbaker1917/chirpy/internal/database"
 )
 
@@ -69,27 +68,6 @@ func (apiCfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 	})
 }
 
-func (apiCfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
-
-	if apiCfg.platform != "dev" {
-		respondWithError(w, 403, "forbidden")
-		return
-	}
-
-	err := apiCfg.db.DeleteAll(r.Context())
-	if err != nil {
-		log.Printf("error deleting all users: %s", err)
-		respondWithError(w, 500, "Error deleting all users")
-		return
-	}
-
-	apiCfg.fileserverHits.Store(0)
-	w.Header().Add("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(fmt.Sprintf("Number of server hits is reset to %d", apiCfg.fileserverHits.Load())))
-
-}
-
 func (apiCfg *apiConfig) handlerMetrics(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
@@ -107,48 +85,6 @@ func handlerReadiness(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(http.StatusText(http.StatusOK)))
-}
-
-func (apiCfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	type reqBody struct {
-		Password string `json:"password"`
-		Email    string `json:"email"`
-	}
-
-	decoder := json.NewDecoder(r.Body)
-	reqBdy := reqBody{}
-	err := decoder.Decode(&reqBdy)
-	if err != nil {
-		log.Printf("Error decoding user input: %s", err)
-		respondWithError(w, 500, "Error decoding request body")
-		return
-	}
-
-	hashed_password, err := auth.HashPassword(reqBdy.Password)
-	if err != nil {
-		log.Printf("Error hasing password: %s", err)
-	}
-
-	user, err := apiCfg.db.CreateUser(ctx, database.CreateUserParams{
-		Email:          reqBdy.Email,
-		HashedPassword: hashed_password,
-	})
-
-	if err != nil {
-		log.Printf("Could not create new user: %s", err)
-		respondWithError(w, 500, "Error trying to create new user")
-		return
-	}
-	userResp := User{
-		ID:          user.ID,
-		CreatedAt:   user.CreatedAt,
-		UpdatedAt:   user.UpdatedAt,
-		Email:       user.Email,
-		IsChirpyRed: user.IsChirpyRed,
-	}
-	respondWithJSON(w, 201, userResp)
-
 }
 
 func main() {
